@@ -1,0 +1,220 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Secure Offline File Transfer Tool</title>
+    <!-- Add CryptoJS for AES encryption -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/crypto-js/4.1.1/crypto-js.min.js"></script>
+    <style>
+        body {
+            font-family: system-ui, -apple-system, sans-serif;
+            max-width: 800px;
+            margin: 2rem auto;
+            padding: 0 1rem;
+            line-height: 1.5;
+        }
+        .container {
+            border: 1px solid #ccc;
+            padding: 1rem;
+            margin: 1rem 0;
+            border-radius: 4px;
+        }
+        button {
+            background: #0066cc;
+            color: white;
+            border: none;
+            padding: 0.5rem 1rem;
+            border-radius: 4px;
+            cursor: pointer;
+            margin: 0.5rem 0;
+        }
+        button:hover {
+            background: #0052a3;
+        }
+        textarea {
+            width: 100%;
+            min-height: 150px;
+            margin: 0.5rem 0;
+            font-family: monospace;
+            padding: 0.5rem;
+        }
+        .progress {
+            margin: 1rem 0;
+            font-weight: bold;
+        }
+        #chunkInfo {
+            color: #666;
+            font-size: 0.9rem;
+            margin: 0.5rem 0;
+        }
+        .password-input {
+            margin: 1rem 0;
+            padding: 0.5rem;
+            width: 200px;
+        }
+        .error {
+            color: #cc0000;
+            margin: 0.5rem 0;
+        }
+    </style>
+</head>
+<body>
+    <h1>Secure Offline File Transfer Tool</h1>
+    
+    <!-- Sender Section -->
+    <div class="container">
+        <h2>Sender</h2>
+        <input type="file" id="fileInput">
+        <input type="password" id="encryptPassword" class="password-input" placeholder="Enter encryption password">
+        <div id="chunkInfo"></div>
+        <div class="progress" id="encodingProgress"></div>
+        <div class="error" id="encodeError"></div>
+        <textarea id="encodedText" placeholder="Encrypted data will appear here..." readonly></textarea>
+        <button onclick="copyToClipboard()">Copy to Clipboard</button>
+        <button onclick="downloadText()">Save as Text File</button>
+    </div>
+
+    <!-- Receiver Section -->
+    <div class="container">
+        <h2>Receiver</h2>
+        <input type="password" id="decryptPassword" class="password-input" placeholder="Enter decryption password">
+        <textarea id="decodedInput" placeholder="Paste the encrypted data here..."></textarea>
+        <button onclick="decodeAndDownload()">Decrypt and Download</button>
+        <div class="progress" id="decodingProgress"></div>
+        <div class="error" id="decodeError"></div>
+    </div>
+
+    <script>
+        // Utility function to handle file encryption
+        function handleFile(file) {
+            const reader = new FileReader();
+            const password = document.getElementById('encryptPassword').value;
+            
+            if (!password) {
+                document.getElementById('encodeError').textContent = 'Please enter an encryption password!';
+                return;
+            }
+            
+            reader.onload = function(e) {
+                try {
+                    const binary = e.target.result;
+                    const base64 = btoa(binary);
+                    
+                    // Create metadata object
+                    const metadata = {
+                        name: file.name,
+                        type: file.type,
+                        size: file.size,
+                        content: base64
+                    };
+                    
+                    // Convert to JSON and encrypt
+                    const jsonStr = JSON.stringify(metadata);
+                    const encrypted = CryptoJS.AES.encrypt(jsonStr, password).toString();
+                    
+                    document.getElementById('encodedText').value = encrypted;
+                    document.getElementById('chunkInfo').textContent = 
+                        `File: ${file.name} (${formatBytes(file.size)})`;
+                    document.getElementById('encodingProgress').textContent = 
+                        'File encrypted! You can now copy or save the encrypted data.';
+                    document.getElementById('encodeError').textContent = '';
+                } catch (error) {
+                    document.getElementById('encodeError').textContent = 'Encryption error: ' + error.message;
+                }
+            };
+
+            reader.onerror = function() {
+                document.getElementById('encodeError').textContent = 'Error reading file!';
+            };
+
+            reader.readAsBinaryString(file);
+        }
+
+        function formatBytes(bytes) {
+            if (bytes === 0) return '0 Bytes';
+            const k = 1024;
+            const sizes = ['Bytes', 'KB', 'MB', 'GB'];
+            const i = Math.floor(Math.log(bytes) / Math.log(k));
+            return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
+        }
+
+        function copyToClipboard() {
+            const textarea = document.getElementById('encodedText');
+            textarea.select();
+            document.execCommand('copy');
+            alert('Copied to clipboard!');
+        }
+
+        function downloadText() {
+            const text = document.getElementById('encodedText').value;
+            if (!text) {
+                alert('No encrypted data to save!');
+                return;
+            }
+            
+            const blob = new Blob([text], { type: 'text/plain' });
+            const url = window.URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = 'encrypted_file.txt';
+            a.click();
+            window.URL.revokeObjectURL(url);
+        }
+
+        function decodeAndDownload() {
+            try {
+                const encryptedData = document.getElementById('decodedInput').value;
+                const password = document.getElementById('decryptPassword').value;
+                
+                if (!encryptedData || !password) {
+                    document.getElementById('decodeError').textContent = 
+                        'Please provide both encrypted data and password!';
+                    return;
+                }
+
+                // Decrypt the data
+                const decrypted = CryptoJS.AES.decrypt(encryptedData, password).toString(CryptoJS.enc.Utf8);
+                if (!decrypted) {
+                    throw new Error('Incorrect password or corrupted data');
+                }
+
+                const metadata = JSON.parse(decrypted);
+                const content = metadata.content;
+                
+                // Convert base64 back to binary
+                const binary = atob(content);
+                
+                // Create blob and download
+                const bytes = new Uint8Array(binary.length);
+                for (let i = 0; i < binary.length; i++) {
+                    bytes[i] = binary.charCodeAt(i);
+                }
+                
+                const blob = new Blob([bytes], { type: metadata.type || 'application/octet-stream' });
+                const url = window.URL.createObjectURL(blob);
+                const a = document.createElement('a');
+                a.href = url;
+                a.download = metadata.name || 'downloaded_file';
+                a.click();
+                window.URL.revokeObjectURL(url);
+                
+                document.getElementById('decodingProgress').textContent = 
+                    'File decrypted and download started!';
+                document.getElementById('decodeError').textContent = '';
+            } catch (error) {
+                document.getElementById('decodeError').textContent = 
+                    'Decryption error: ' + error.message;
+            }
+        }
+
+        // Set up file input handler
+        document.getElementById('fileInput').addEventListener('change', function(e) {
+            const file = e.target.files[0];
+            if (file) {
+                handleFile(file);
+            }
+        });
+    </script>
+</body>
+</html>
