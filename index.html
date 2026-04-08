@@ -1,220 +1,723 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Secure Offline File Transfer Tool</title>
-    <!-- Add CryptoJS for AES encryption -->
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/crypto-js/4.1.1/crypto-js.min.js"></script>
-    <style>
-        body {
-            font-family: system-ui, -apple-system, sans-serif;
-            max-width: 800px;
-            margin: 2rem auto;
-            padding: 0 1rem;
-            line-height: 1.5;
-        }
-        .container {
-            border: 1px solid #ccc;
-            padding: 1rem;
-            margin: 1rem 0;
-            border-radius: 4px;
-        }
-        button {
-            background: #0066cc;
-            color: white;
-            border: none;
-            padding: 0.5rem 1rem;
-            border-radius: 4px;
-            cursor: pointer;
-            margin: 0.5rem 0;
-        }
-        button:hover {
-            background: #0052a3;
-        }
-        textarea {
-            width: 100%;
-            min-height: 150px;
-            margin: 0.5rem 0;
-            font-family: monospace;
-            padding: 0.5rem;
-        }
-        .progress {
-            margin: 1rem 0;
-            font-weight: bold;
-        }
-        #chunkInfo {
-            color: #666;
-            font-size: 0.9rem;
-            margin: 0.5rem 0;
-        }
-        .password-input {
-            margin: 1rem 0;
-            padding: 0.5rem;
-            width: 200px;
-        }
-        .error {
-            color: #cc0000;
-            margin: 0.5rem 0;
-        }
-    </style>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Secure File Transfer</title>
+  <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600;700&family=DM+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <style>
+    :root {
+      --bg: #0a0a0f;
+      --surface: #12121a;
+      --surface-2: #1a1a26;
+      --border: #2a2a3a;
+      --border-focus: #5b5bff;
+      --text: #e4e4ef;
+      --text-dim: #8888a0;
+      --accent: #6c6cff;
+      --accent-glow: rgba(108, 108, 255, 0.15);
+      --success: #3ddc84;
+      --success-dim: rgba(61, 220, 132, 0.1);
+      --error: #ff5c5c;
+      --error-dim: rgba(255, 92, 92, 0.1);
+      --warn: #ffb84d;
+      --orange: #ff8c42;
+      --orange-glow: rgba(255, 140, 66, 0.12);
+      --live: #00e5a0;
+      --live-glow: rgba(0, 229, 160, 0.12);
+      --radius: 10px;
+      --mono: 'JetBrains Mono', monospace;
+      --sans: 'DM Sans', system-ui, sans-serif;
+    }
+
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+
+    body {
+      font-family: var(--sans);
+      background: var(--bg);
+      color: var(--text);
+      min-height: 100vh;
+      line-height: 1.6;
+    }
+
+    .grain {
+      position: fixed; inset: 0; z-index: 0; pointer-events: none; opacity: 0.03;
+      background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
+    }
+
+    .app {
+      position: relative; z-index: 1;
+      max-width: 740px; margin: 0 auto; padding: 2rem 1.5rem 4rem;
+    }
+
+    header { text-align: center; margin-bottom: 2.5rem; padding-top: 1.5rem; }
+    header .icon {
+      display: inline-flex; align-items: center; justify-content: center;
+      width: 56px; height: 56px; border-radius: 14px;
+      background: linear-gradient(135deg, var(--accent), #9b6cff);
+      margin-bottom: 1.2rem; font-size: 1.5rem;
+    }
+    header h1 {
+      font-family: var(--mono); font-size: 1.35rem; font-weight: 700;
+      letter-spacing: -0.03em; margin-bottom: 0.4rem;
+    }
+    header p { color: var(--text-dim); font-size: 0.88rem; }
+    .badge {
+      display: inline-block; font-family: var(--mono); font-size: 0.68rem;
+      font-weight: 600; letter-spacing: 0.06em; text-transform: uppercase;
+      padding: 0.25rem 0.65rem; border-radius: 20px; margin-top: 0.8rem;
+      background: var(--accent-glow); color: var(--accent); border: 1px solid rgba(108,108,255,0.2);
+    }
+
+    .tabs {
+      display: flex; gap: 4px; background: var(--surface); border-radius: var(--radius);
+      padding: 4px; margin-bottom: 2rem; border: 1px solid var(--border);
+    }
+    .tab {
+      flex: 1; padding: 0.7rem; text-align: center; border-radius: 7px;
+      font-family: var(--mono); font-size: 0.78rem; font-weight: 600;
+      cursor: pointer; transition: all 0.2s; color: var(--text-dim);
+      border: none; background: transparent; white-space: nowrap;
+    }
+    .tab:hover { color: var(--text); }
+    .tab.active { background: var(--surface-2); color: var(--text); box-shadow: 0 1px 4px rgba(0,0,0,0.3); }
+    .tab .live-dot {
+      display: inline-block; width: 6px; height: 6px; border-radius: 50%;
+      background: var(--live); margin-right: 4px; animation: pulse 2s infinite;
+    }
+    @keyframes pulse { 0%,100%{opacity:1} 50%{opacity:0.3} }
+
+    .panel { display: none; }
+    .panel.active { display: block; animation: fadeUp 0.3s ease; }
+    @keyframes fadeUp { from{opacity:0;transform:translateY(8px)} to{opacity:1;transform:translateY(0)} }
+
+    .card {
+      background: var(--surface); border: 1px solid var(--border);
+      border-radius: var(--radius); padding: 1.5rem; margin-bottom: 1.2rem;
+    }
+    .card-title {
+      font-family: var(--mono); font-size: 0.75rem; font-weight: 600;
+      text-transform: uppercase; letter-spacing: 0.08em; color: var(--text-dim);
+      margin-bottom: 1rem;
+    }
+
+    .drop-zone {
+      border: 2px dashed var(--border); border-radius: var(--radius);
+      padding: 2.5rem 1.5rem; text-align: center; cursor: pointer;
+      transition: all 0.25s; position: relative;
+    }
+    .drop-zone:hover, .drop-zone.drag-over { border-color: var(--accent); background: var(--accent-glow); }
+    .drop-zone input { position: absolute; inset: 0; opacity: 0; cursor: pointer; }
+    .drop-zone .drop-icon { font-size: 2rem; margin-bottom: 0.5rem; }
+    .drop-zone .drop-text { color: var(--text-dim); font-size: 0.88rem; }
+    .drop-zone .drop-text strong { color: var(--accent); }
+
+    .file-info {
+      display: flex; align-items: center; gap: 0.75rem;
+      background: var(--surface-2); border-radius: 8px; padding: 0.75rem 1rem;
+      margin-top: 1rem; font-family: var(--mono); font-size: 0.82rem;
+    }
+    .file-info .fi-name { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .file-info .fi-size { color: var(--text-dim); white-space: nowrap; }
+
+    label.field-label {
+      display: block; font-family: var(--mono); font-size: 0.72rem; font-weight: 600;
+      text-transform: uppercase; letter-spacing: 0.06em; color: var(--text-dim);
+      margin-bottom: 0.4rem;
+    }
+
+    input[type="password"], input[type="text"], textarea {
+      width: 100%; background: var(--surface-2); border: 1px solid var(--border);
+      border-radius: 8px; color: var(--text); font-family: var(--mono);
+      font-size: 0.85rem; padding: 0.7rem 0.9rem; outline: none;
+      transition: border-color 0.2s;
+    }
+    input:focus, textarea:focus { border-color: var(--border-focus); }
+    textarea { min-height: 130px; resize: vertical; line-height: 1.5; }
+
+    .pw-strength { height: 3px; border-radius: 3px; margin-top: 0.5rem; background: var(--surface-2); overflow: hidden; }
+    .pw-strength .bar { height: 100%; border-radius: 3px; width: 0; transition: width 0.3s, background 0.3s; }
+    .pw-strength-label { font-family: var(--mono); font-size: 0.7rem; margin-top: 0.3rem; color: var(--text-dim); min-height: 1.1em; }
+
+    .btn {
+      display: inline-flex; align-items: center; gap: 0.5rem;
+      font-family: var(--mono); font-size: 0.82rem; font-weight: 600;
+      padding: 0.7rem 1.3rem; border-radius: 8px; border: none;
+      cursor: pointer; transition: all 0.2s;
+    }
+    .btn-primary { background: var(--accent); color: #fff; }
+    .btn-primary:hover { background: #5b5bff; transform: translateY(-1px); }
+    .btn-secondary { background: var(--surface-2); color: var(--text); border: 1px solid var(--border); }
+    .btn-secondary:hover { border-color: var(--text-dim); }
+    .btn-danger { background: var(--error-dim); color: var(--error); border: 1px solid rgba(255,92,92,0.2); }
+    .btn-danger:hover { background: rgba(255,92,92,0.2); }
+    .btn-live { background: var(--live-glow); color: var(--live); border: 1px solid rgba(0,229,160,0.2); }
+    .btn-live:hover { background: rgba(0,229,160,0.22); }
+    .btn-sm { padding: 0.4rem 0.8rem; font-size: 0.74rem; }
+    .btn-row { display: flex; gap: 0.6rem; margin-top: 1rem; flex-wrap: wrap; }
+
+    .msg {
+      font-family: var(--mono); font-size: 0.78rem; padding: 0.6rem 0.9rem;
+      border-radius: 8px; margin-top: 0.8rem; display: none;
+    }
+    .msg.ok { display: block; background: var(--success-dim); color: var(--success); }
+    .msg.err { display: block; background: var(--error-dim); color: var(--error); }
+
+    .progress-ring { display: none; align-items: center; gap: 0.8rem; margin-top: 1rem; }
+    .progress-ring.show { display: flex; }
+    .spinner {
+      width: 20px; height: 20px; border: 2px solid var(--border);
+      border-top-color: var(--accent); border-radius: 50%;
+      animation: spin 0.7s linear infinite;
+    }
+    @keyframes spin { to{transform:rotate(360deg)} }
+    .progress-ring span { font-family: var(--mono); font-size: 0.8rem; color: var(--text-dim); }
+
+    /* Board items */
+    .board-item {
+      background: var(--surface-2); border: 1px solid var(--border);
+      border-radius: 8px; padding: 1rem 1.2rem; margin-bottom: 0.7rem;
+      transition: border-color 0.2s;
+    }
+    .board-item:hover { border-color: rgba(108,108,255,0.3); }
+    .board-item-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.4rem; }
+    .board-item-label {
+      font-family: var(--mono); font-size: 0.85rem; font-weight: 600;
+      display: flex; align-items: center; gap: 0.6rem;
+    }
+    .board-item-time { font-family: var(--mono); font-size: 0.7rem; color: var(--text-dim); }
+    .board-item-meta { font-family: var(--mono); font-size: 0.72rem; color: var(--text-dim); margin-bottom: 0.6rem; }
+    .board-item-actions { display: flex; gap: 0.4rem; flex-wrap: wrap; }
+    .tag {
+      font-family: var(--mono); font-size: 0.62rem; font-weight: 600;
+      text-transform: uppercase; letter-spacing: 0.04em;
+      padding: 0.15rem 0.5rem; border-radius: 4px;
+      background: var(--accent-glow); color: var(--accent);
+    }
+    .board-empty { text-align: center; padding: 2.5rem 1rem; color: var(--text-dim); font-size: 0.88rem; }
+    .board-empty .empty-icon { font-size: 2.5rem; margin-bottom: 0.8rem; }
+    .board-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 1rem; }
+    .board-header .board-count { font-family: var(--mono); font-size: 0.72rem; color: var(--text-dim); text-transform: uppercase; letter-spacing: 0.05em; }
+
+    .status-bar {
+      display: flex; align-items: center; gap: 0.5rem;
+      font-family: var(--mono); font-size: 0.72rem; margin-bottom: 1.2rem;
+      padding: 0.5rem 0.8rem; border-radius: 8px;
+      background: var(--surface); border: 1px solid var(--border);
+    }
+    .status-dot { width: 8px; height: 8px; border-radius: 50%; background: var(--error); flex-shrink: 0; }
+    .status-dot.connected { background: var(--live); animation: pulse 2s infinite; }
+    .status-text { color: var(--text-dim); }
+
+    .setup-card {
+      background: var(--surface); border: 1px solid var(--orange);
+      border-radius: var(--radius); padding: 1.5rem; margin-bottom: 1.5rem;
+    }
+    .setup-card h3 { font-family: var(--mono); font-size: 0.82rem; font-weight: 700; color: var(--orange); margin-bottom: 0.6rem; }
+    .setup-card p { font-size: 0.84rem; color: var(--text-dim); margin-bottom: 0.8rem; }
+    .setup-card ol { font-size: 0.82rem; color: var(--text-dim); padding-left: 1.2rem; margin-bottom: 1rem; }
+    .setup-card ol li { margin-bottom: 0.4rem; }
+    .setup-card ol li code {
+      font-family: var(--mono); font-size: 0.78rem; color: var(--orange);
+      background: var(--orange-glow); padding: 0.1rem 0.35rem; border-radius: 3px;
+    }
+    .config-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 0.6rem; }
+    .config-grid .full { grid-column: 1 / -1; }
+
+    .spec {
+      margin-top: 2.5rem; padding: 1.5rem; border-radius: var(--radius);
+      border: 1px solid var(--border); background: var(--surface);
+    }
+    .spec h3 {
+      font-family: var(--mono); font-size: 0.78rem; font-weight: 700;
+      text-transform: uppercase; letter-spacing: 0.06em; margin-bottom: 1rem; color: var(--text-dim);
+    }
+    .spec-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 0.8rem; }
+    .spec-item { background: var(--surface-2); border-radius: 8px; padding: 0.8rem 1rem; }
+    .spec-item dt { font-family: var(--mono); font-size: 0.68rem; font-weight: 600; text-transform: uppercase; letter-spacing: 0.05em; color: var(--text-dim); margin-bottom: 0.2rem; }
+    .spec-item dd { font-family: var(--mono); font-size: 0.82rem; color: var(--accent); font-weight: 600; }
+
+    @media (max-width: 600px) {
+      .spec-grid, .config-grid { grid-template-columns: 1fr; }
+      .config-grid .full { grid-column: 1; }
+      .app { padding: 1.2rem 1rem 3rem; }
+      .tab { font-size: 0.7rem; padding: 0.6rem 0.3rem; }
+    }
+  </style>
 </head>
 <body>
-    <h1>Secure Offline File Transfer Tool</h1>
-    
-    <!-- Sender Section -->
-    <div class="container">
-        <h2>Sender</h2>
-        <input type="file" id="fileInput">
-        <input type="password" id="encryptPassword" class="password-input" placeholder="Enter encryption password">
-        <div id="chunkInfo"></div>
-        <div class="progress" id="encodingProgress"></div>
-        <div class="error" id="encodeError"></div>
-        <textarea id="encodedText" placeholder="Encrypted data will appear here..." readonly></textarea>
-        <button onclick="copyToClipboard()">Copy to Clipboard</button>
-        <button onclick="downloadText()">Save as Text File</button>
+  <div class="grain"></div>
+  <div class="app">
+
+    <header>
+      <div class="icon">🔐</div>
+      <h1>Secure File Transfer</h1>
+      <p>Client-side AES-256-GCM &middot; Firebase real-time board</p>
+      <div class="badge">Zero server decryption</div>
+    </header>
+
+    <div class="tabs">
+      <button class="tab active" onclick="switchTab('encrypt')">Encrypt</button>
+      <button class="tab" onclick="switchTab('decrypt')">Decrypt</button>
+      <button class="tab" onclick="switchTab('board')"><span class="live-dot"></span>Live Board</button>
+      <button class="tab" onclick="switchTab('setup')">⚙ Setup</button>
     </div>
 
-    <!-- Receiver Section -->
-    <div class="container">
-        <h2>Receiver</h2>
-        <input type="password" id="decryptPassword" class="password-input" placeholder="Enter decryption password">
-        <textarea id="decodedInput" placeholder="Paste the encrypted data here..."></textarea>
-        <button onclick="decodeAndDownload()">Decrypt and Download</button>
-        <div class="progress" id="decodingProgress"></div>
-        <div class="error" id="decodeError"></div>
+    <!-- ENCRYPT -->
+    <div id="panel-encrypt" class="panel active">
+      <div class="card">
+        <div class="card-title">1 — Select file</div>
+        <div class="drop-zone" id="dropZone">
+          <input type="file" id="fileInput">
+          <div class="drop-icon">📂</div>
+          <div class="drop-text">Drop a file here or <strong>browse</strong></div>
+        </div>
+        <div id="fileInfo" style="display:none" class="file-info">
+          <span>📄</span>
+          <span class="fi-name" id="fileName"></span>
+          <span class="fi-size" id="fileSize"></span>
+        </div>
+      </div>
+      <div class="card">
+        <div class="card-title">2 — Set password</div>
+        <label class="field-label" for="encPw">Encryption password</label>
+        <input type="password" id="encPw" placeholder="Use a strong, unique passphrase">
+        <div class="pw-strength"><div class="bar" id="pwBar"></div></div>
+        <div class="pw-strength-label" id="pwLabel"></div>
+      </div>
+      <div class="card">
+        <div class="card-title">3 — Output</div>
+        <textarea id="encOutput" placeholder="Encrypted payload appears here…" readonly></textarea>
+        <div class="btn-row">
+          <button class="btn btn-secondary" onclick="copyOutput()">📋 Copy</button>
+          <button class="btn btn-secondary" onclick="downloadOutput()">💾 Save .txt</button>
+          <button class="btn btn-live" onclick="postToBoard()">📡 Post to Board</button>
+        </div>
+        <div class="progress-ring" id="encProgress"><div class="spinner"></div><span id="encProgressText">Encrypting…</span></div>
+        <div class="msg" id="encMsg"></div>
+      </div>
     </div>
 
-    <script>
-        // Utility function to handle file encryption
-        function handleFile(file) {
-            const reader = new FileReader();
-            const password = document.getElementById('encryptPassword').value;
-            
-            if (!password) {
-                document.getElementById('encodeError').textContent = 'Please enter an encryption password!';
-                return;
-            }
-            
-            reader.onload = function(e) {
-                try {
-                    const binary = e.target.result;
-                    const base64 = btoa(binary);
-                    
-                    // Create metadata object
-                    const metadata = {
-                        name: file.name,
-                        type: file.type,
-                        size: file.size,
-                        content: base64
-                    };
-                    
-                    // Convert to JSON and encrypt
-                    const jsonStr = JSON.stringify(metadata);
-                    const encrypted = CryptoJS.AES.encrypt(jsonStr, password).toString();
-                    
-                    document.getElementById('encodedText').value = encrypted;
-                    document.getElementById('chunkInfo').textContent = 
-                        `File: ${file.name} (${formatBytes(file.size)})`;
-                    document.getElementById('encodingProgress').textContent = 
-                        'File encrypted! You can now copy or save the encrypted data.';
-                    document.getElementById('encodeError').textContent = '';
-                } catch (error) {
-                    document.getElementById('encodeError').textContent = 'Encryption error: ' + error.message;
-                }
-            };
+    <!-- DECRYPT -->
+    <div id="panel-decrypt" class="panel">
+      <div class="card">
+        <div class="card-title">1 — Paste encrypted payload</div>
+        <textarea id="decInput" placeholder="Paste the full encrypted string here…"></textarea>
+      </div>
+      <div class="card">
+        <div class="card-title">2 — Enter password</div>
+        <label class="field-label" for="decPw">Decryption password</label>
+        <input type="password" id="decPw" placeholder="Same password used for encryption">
+      </div>
+      <div class="card">
+        <button class="btn btn-primary" onclick="decryptAndDownload()">🔓 Decrypt &amp; Download</button>
+        <div class="progress-ring" id="decProgress"><div class="spinner"></div><span>Decrypting…</span></div>
+        <div class="msg" id="decMsg"></div>
+      </div>
+    </div>
 
-            reader.onerror = function() {
-                document.getElementById('encodeError').textContent = 'Error reading file!';
-            };
+    <!-- LIVE BOARD -->
+    <div id="panel-board" class="panel">
+      <div class="status-bar">
+        <div class="status-dot" id="fbStatusDot"></div>
+        <span class="status-text" id="fbStatusText">Not connected — configure Firebase in Setup tab</span>
+      </div>
+      <div class="card">
+        <div class="card-title">Post encrypted payload</div>
+        <label class="field-label" for="postLabel">Label (optional)</label>
+        <input type="text" id="postLabel" placeholder="e.g. report-q4, photo-album" style="margin-bottom:0.8rem;">
+        <label class="field-label" for="postContent">Encrypted payload</label>
+        <textarea id="postContent" placeholder="Paste encrypted output here…"></textarea>
+        <div class="btn-row">
+          <button class="btn btn-live" onclick="boardPost()">📡 Publish</button>
+        </div>
+        <div class="msg" id="boardPostMsg"></div>
+      </div>
+      <div class="card">
+        <div class="board-header">
+          <div class="card-title" style="margin:0">Shared board</div>
+          <span class="board-count" id="boardCount">0 items</span>
+        </div>
+        <div id="boardList">
+          <div class="board-empty"><div class="empty-icon">📭</div><p>Board is empty</p></div>
+        </div>
+      </div>
+    </div>
 
-            reader.readAsBinaryString(file);
-        }
+    <!-- SETUP -->
+    <div id="panel-setup" class="panel">
+      <div class="setup-card">
+        <h3>⚡ Firebase Setup (one-time)</h3>
+        <p>The Live Board needs a Firebase Realtime Database. Free tier is more than enough.</p>
+        <ol>
+          <li>Go to <strong>console.firebase.google.com</strong> → Create project</li>
+          <li>Build → Realtime Database → Create database → <code>Start in test mode</code></li>
+          <li>Project Settings (⚙) → Add web app → copy the config values below</li>
+          <li>Paste them here and click <strong>Connect</strong></li>
+        </ol>
+        <p style="font-size:0.78rem; color:var(--warn);">⚠ For production use, update database rules to restrict write access.</p>
+      </div>
+      <div class="card">
+        <div class="card-title">Firebase config</div>
+        <div class="config-grid">
+          <div class="full">
+            <label class="field-label">API Key</label>
+            <input type="text" id="cfgApiKey" placeholder="AIzaSy...">
+          </div>
+          <div>
+            <label class="field-label">Project ID</label>
+            <input type="text" id="cfgProjectId" placeholder="my-project-12345">
+          </div>
+          <div>
+            <label class="field-label">App ID</label>
+            <input type="text" id="cfgAppId" placeholder="1:123:web:abc">
+          </div>
+          <div class="full">
+            <label class="field-label">Database URL</label>
+            <input type="text" id="cfgDbUrl" placeholder="https://my-project-12345-default-rtdb.firebaseio.com">
+          </div>
+        </div>
+        <div class="btn-row">
+          <button class="btn btn-primary" onclick="saveAndConnect()">🔌 Connect</button>
+          <button class="btn btn-secondary" onclick="clearConfig()">Clear config</button>
+        </div>
+        <div class="msg" id="setupMsg"></div>
+      </div>
+      <div class="card">
+        <div class="card-title">Recommended database rules</div>
+        <textarea readonly style="min-height:100px;font-size:0.76rem;color:var(--warn);background:var(--surface);cursor:text;">{
+  "rules": {
+    "drops": {
+      ".read": true,
+      ".write": true,
+      "$item": {
+        ".validate": "newData.hasChildren(['label','payload','ts'])"
+      }
+    }
+  }
+}</textarea>
+        <p style="font-size:0.76rem;color:var(--text-dim);margin-top:0.5rem;">
+          Paste into Firebase Console → Realtime Database → Rules tab.
+        </p>
+      </div>
+    </div>
 
-        function formatBytes(bytes) {
-            if (bytes === 0) return '0 Bytes';
-            const k = 1024;
-            const sizes = ['Bytes', 'KB', 'MB', 'GB'];
-            const i = Math.floor(Math.log(bytes) / Math.log(k));
-            return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
-        }
+    <div class="spec">
+      <h3>Cryptographic spec</h3>
+      <div class="spec-grid">
+        <div class="spec-item"><dt>Cipher</dt><dd>AES-256-GCM</dd></div>
+        <div class="spec-item"><dt>KDF</dt><dd>PBKDF2-SHA-256</dd></div>
+        <div class="spec-item"><dt>Iterations</dt><dd>600 000</dd></div>
+        <div class="spec-item"><dt>Salt / IV</dt><dd>Random 16 / 12 B</dd></div>
+      </div>
+    </div>
+  </div>
 
-        function copyToClipboard() {
-            const textarea = document.getElementById('encodedText');
-            textarea.select();
-            document.execCommand('copy');
-            alert('Copied to clipboard!');
-        }
+<!-- Firebase SDKs (compat) -->
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-database-compat.js"></script>
 
-        function downloadText() {
-            const text = document.getElementById('encodedText').value;
-            if (!text) {
-                alert('No encrypted data to save!');
-                return;
-            }
-            
-            const blob = new Blob([text], { type: 'text/plain' });
-            const url = window.URL.createObjectURL(blob);
-            const a = document.createElement('a');
-            a.href = url;
-            a.download = 'encrypted_file.txt';
-            a.click();
-            window.URL.revokeObjectURL(url);
-        }
+<script>
+// ═══════════════════════════════════════════════════════════════
+// CRYPTO — Web Crypto API, AES-256-GCM, PBKDF2
+// ═══════════════════════════════════════════════════════════════
+const PBKDF2_ITER = 600_000, SALT_LEN = 16, IV_LEN = 12;
 
-        function decodeAndDownload() {
-            try {
-                const encryptedData = document.getElementById('decodedInput').value;
-                const password = document.getElementById('decryptPassword').value;
-                
-                if (!encryptedData || !password) {
-                    document.getElementById('decodeError').textContent = 
-                        'Please provide both encrypted data and password!';
-                    return;
-                }
+async function deriveKey(pw, salt) {
+  const km = await crypto.subtle.importKey('raw', new TextEncoder().encode(pw), 'PBKDF2', false, ['deriveKey']);
+  return crypto.subtle.deriveKey(
+    { name:'PBKDF2', salt, iterations:PBKDF2_ITER, hash:'SHA-256' },
+    km, { name:'AES-GCM', length:256 }, false, ['encrypt','decrypt']
+  );
+}
 
-                // Decrypt the data
-                const decrypted = CryptoJS.AES.decrypt(encryptedData, password).toString(CryptoJS.enc.Utf8);
-                if (!decrypted) {
-                    throw new Error('Incorrect password or corrupted data');
-                }
+async function encryptFile(file, pw) {
+  const salt = crypto.getRandomValues(new Uint8Array(SALT_LEN));
+  const iv   = crypto.getRandomValues(new Uint8Array(IV_LEN));
+  const key  = await deriveKey(pw, salt);
+  const buf  = await file.arrayBuffer();
+  const meta = new TextEncoder().encode(JSON.stringify({ name:file.name, type:file.type, size:file.size }));
+  const plain = new Uint8Array(meta.length + 1 + buf.byteLength);
+  plain.set(meta); plain[meta.length] = 0x00; plain.set(new Uint8Array(buf), meta.length + 1);
+  const ct = await crypto.subtle.encrypt({ name:'AES-GCM', iv }, key, plain);
+  const packed = new Uint8Array(SALT_LEN + IV_LEN + ct.byteLength);
+  packed.set(salt); packed.set(iv, SALT_LEN); packed.set(new Uint8Array(ct), SALT_LEN + IV_LEN);
+  return ab2b64(packed.buffer);
+}
 
-                const metadata = JSON.parse(decrypted);
-                const content = metadata.content;
-                
-                // Convert base64 back to binary
-                const binary = atob(content);
-                
-                // Create blob and download
-                const bytes = new Uint8Array(binary.length);
-                for (let i = 0; i < binary.length; i++) {
-                    bytes[i] = binary.charCodeAt(i);
-                }
-                
-                const blob = new Blob([bytes], { type: metadata.type || 'application/octet-stream' });
-                const url = window.URL.createObjectURL(blob);
-                const a = document.createElement('a');
-                a.href = url;
-                a.download = metadata.name || 'downloaded_file';
-                a.click();
-                window.URL.revokeObjectURL(url);
-                
-                document.getElementById('decodingProgress').textContent = 
-                    'File decrypted and download started!';
-                document.getElementById('decodeError').textContent = '';
-            } catch (error) {
-                document.getElementById('decodeError').textContent = 
-                    'Decryption error: ' + error.message;
-            }
-        }
+async function decryptPayload(b64, pw) {
+  const bytes = new Uint8Array(b642ab(b64));
+  const salt = bytes.slice(0, SALT_LEN), iv = bytes.slice(SALT_LEN, SALT_LEN + IV_LEN), ct = bytes.slice(SALT_LEN + IV_LEN);
+  const key = await deriveKey(pw, salt);
+  let plain;
+  try { plain = await crypto.subtle.decrypt({ name:'AES-GCM', iv }, key, ct); }
+  catch { throw new Error('Decryption failed — wrong password or corrupted data.'); }
+  const p = new Uint8Array(plain), sep = p.indexOf(0x00);
+  if (sep === -1) throw new Error('Invalid payload.');
+  return { meta: JSON.parse(new TextDecoder().decode(p.slice(0, sep))), data: p.slice(sep + 1) };
+}
 
-        // Set up file input handler
-        document.getElementById('fileInput').addEventListener('change', function(e) {
-            const file = e.target.files[0];
-            if (file) {
-                handleFile(file);
-            }
-        });
-    </script>
+function ab2b64(buf) {
+  const b = new Uint8Array(buf); let s = '';
+  for (let i = 0; i < b.length; i += 0x8000) s += String.fromCharCode(...b.subarray(i, i + 0x8000));
+  return btoa(s);
+}
+function b642ab(s) {
+  const b = atob(s), a = new Uint8Array(b.length);
+  for (let i = 0; i < b.length; i++) a[i] = b.charCodeAt(i);
+  return a.buffer;
+}
+
+// ═══════════════════════════════════════════════════════════════
+// UI HELPERS
+// ═══════════════════════════════════════════════════════════════
+const $ = id => document.getElementById(id);
+function fmt(b) {
+  if (b === 0) return '0 B';
+  const k = 1024, s = ['B','KB','MB','GB'];
+  const i = Math.floor(Math.log(b) / Math.log(k));
+  return parseFloat((b / Math.pow(k, i)).toFixed(1)) + ' ' + s[i];
+}
+function esc(s) { const d = document.createElement('div'); d.textContent = s; return d.innerHTML; }
+function timeAgo(ts) {
+  const d = Math.floor((Date.now() - ts) / 1000);
+  if (d < 60) return 'just now';
+  if (d < 3600) return Math.floor(d/60) + 'm ago';
+  if (d < 86400) return Math.floor(d/3600) + 'h ago';
+  return Math.floor(d/86400) + 'd ago';
+}
+function showMsg(id, text, ok) { const el = $(id); el.textContent = text; el.className = 'msg ' + (ok ? 'ok' : 'err'); }
+function clearMsg(id) { const el = $(id); el.className = 'msg'; el.textContent = ''; }
+
+const TAB_IDS = ['encrypt','decrypt','board','setup'];
+function switchTab(name) {
+  document.querySelectorAll('.tab').forEach((t, i) => t.classList.toggle('active', TAB_IDS[i] === name));
+  TAB_IDS.forEach(id => $('panel-' + id).classList.toggle('active', id === name));
+}
+
+// ═══════════════════════════════════════════════════════════════
+// ENCRYPT TAB
+// ═══════════════════════════════════════════════════════════════
+let selectedFile = null;
+const dropZone = $('dropZone'), fileInput = $('fileInput');
+fileInput.addEventListener('change', e => { if (e.target.files[0]) pickFile(e.target.files[0]); });
+dropZone.addEventListener('dragover', e => { e.preventDefault(); dropZone.classList.add('drag-over'); });
+dropZone.addEventListener('dragleave', () => dropZone.classList.remove('drag-over'));
+dropZone.addEventListener('drop', e => { e.preventDefault(); dropZone.classList.remove('drag-over'); if (e.dataTransfer.files[0]) pickFile(e.dataTransfer.files[0]); });
+
+function pickFile(f) {
+  selectedFile = f;
+  $('fileName').textContent = f.name;
+  $('fileSize').textContent = fmt(f.size);
+  $('fileInfo').style.display = 'flex';
+  clearMsg('encMsg'); startEncrypt();
+}
+
+async function startEncrypt() {
+  const pw = $('encPw').value;
+  if (!selectedFile || !pw) { if (selectedFile && !pw) showMsg('encMsg', 'Enter a password first.', false); return; }
+  $('encProgress').classList.add('show');
+  $('encProgressText').textContent = 'Deriving key (PBKDF2 600k)…';
+  clearMsg('encMsg');
+  try {
+    const r = await encryptFile(selectedFile, pw);
+    $('encOutput').value = r;
+    showMsg('encMsg', `Encrypted ${fmt(selectedFile.size)} → ${fmt(r.length)} payload.`, true);
+  } catch (err) { showMsg('encMsg', 'Error: ' + err.message, false); }
+  finally { $('encProgress').classList.remove('show'); }
+}
+
+$('encPw').addEventListener('input', () => { updatePwStrength(); if (selectedFile) startEncrypt(); });
+
+function copyOutput() {
+  const v = $('encOutput').value; if (!v) return;
+  navigator.clipboard.writeText(v).then(() => showMsg('encMsg', 'Copied.', true));
+}
+function downloadOutput() {
+  const v = $('encOutput').value; if (!v) return;
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(new Blob([v], { type:'text/plain' }));
+  a.download = 'encrypted_payload.txt'; a.click(); URL.revokeObjectURL(a.href);
+}
+
+// ═══════════════════════════════════════════════════════════════
+// DECRYPT TAB
+// ═══════════════════════════════════════════════════════════════
+async function decryptAndDownload() {
+  const payload = $('decInput').value.trim(), pw = $('decPw').value;
+  if (!payload || !pw) { showMsg('decMsg', 'Provide both payload and password.', false); return; }
+  $('decProgress').classList.add('show'); clearMsg('decMsg');
+  try {
+    const { meta, data } = await decryptPayload(payload, pw);
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(new Blob([data], { type: meta.type || 'application/octet-stream' }));
+    a.download = meta.name || 'decrypted_file'; a.click(); URL.revokeObjectURL(a.href);
+    showMsg('decMsg', `Decrypted "${esc(meta.name)}" (${fmt(meta.size)}).`, true);
+  } catch (err) { showMsg('decMsg', err.message, false); }
+  finally { $('decProgress').classList.remove('show'); }
+}
+
+// ═══════════════════════════════════════════════════════════════
+// PASSWORD STRENGTH
+// ═══════════════════════════════════════════════════════════════
+function updatePwStrength() {
+  const pw = $('encPw').value, bar = $('pwBar'), lbl = $('pwLabel');
+  if (!pw) { bar.style.width = '0'; lbl.textContent = ''; return; }
+  let s = 0;
+  if (pw.length >= 8) s++; if (pw.length >= 14) s++; if (pw.length >= 20) s++;
+  if (/[a-z]/.test(pw) && /[A-Z]/.test(pw)) s++;
+  if (/\d/.test(pw)) s++; if (/[^a-zA-Z0-9]/.test(pw)) s++;
+  const L = [
+    {w:'10%',c:'var(--error)',t:'Very weak'},{w:'25%',c:'var(--error)',t:'Weak'},
+    {w:'45%',c:'var(--warn)',t:'Fair'},{w:'65%',c:'var(--warn)',t:'Good'},
+    {w:'82%',c:'var(--success)',t:'Strong'},{w:'100%',c:'var(--success)',t:'Excellent'},
+  ];
+  const x = Math.min(s, L.length - 1);
+  bar.style.width = L[x].w; bar.style.background = L[x].c;
+  lbl.textContent = L[x].t; lbl.style.color = L[x].c;
+}
+
+// ═══════════════════════════════════════════════════════════════
+// FIREBASE — LIVE BOARD
+// ═══════════════════════════════════════════════════════════════
+const CONFIG_KEY = 'sft_firebase_config';
+let db = null, dropsRef = null, boardData = {};
+
+function loadSavedConfig() { try { return JSON.parse(localStorage.getItem(CONFIG_KEY)); } catch { return null; } }
+
+function setStatus(connected, text) {
+  $('fbStatusDot').classList.toggle('connected', connected);
+  $('fbStatusText').textContent = text;
+}
+
+function initFirebase(cfg) {
+  if (firebase.apps.length) {
+    firebase.app().delete().then(() => boot(cfg));
+  } else { boot(cfg); }
+}
+
+function boot(cfg) {
+  try {
+    firebase.initializeApp({
+      apiKey: cfg.apiKey, projectId: cfg.projectId,
+      appId: cfg.appId, databaseURL: cfg.dbUrl,
+    });
+    db = firebase.database();
+    dropsRef = db.ref('drops');
+
+    db.ref('.info/connected').on('value', snap => {
+      if (snap.val() === true) setStatus(true, 'Connected — real-time sync active');
+      else setStatus(false, 'Disconnected — retrying…');
+    });
+
+    dropsRef.orderByChild('ts').on('value', snap => {
+      boardData = snap.val() || {};
+      renderBoard();
+    });
+  } catch (err) {
+    setStatus(false, 'Init error: ' + err.message);
+  }
+}
+
+// Restore saved config
+const savedCfg = loadSavedConfig();
+if (savedCfg) {
+  $('cfgApiKey').value    = savedCfg.apiKey    || '';
+  $('cfgProjectId').value = savedCfg.projectId || '';
+  $('cfgAppId').value     = savedCfg.appId     || '';
+  $('cfgDbUrl').value     = savedCfg.dbUrl     || '';
+  initFirebase(savedCfg);
+}
+
+function saveAndConnect() {
+  const cfg = {
+    apiKey:    $('cfgApiKey').value.trim(),
+    projectId: $('cfgProjectId').value.trim(),
+    appId:     $('cfgAppId').value.trim(),
+    dbUrl:     $('cfgDbUrl').value.trim(),
+  };
+  if (!cfg.apiKey || !cfg.dbUrl) { showMsg('setupMsg', 'API Key and Database URL are required.', false); return; }
+  localStorage.setItem(CONFIG_KEY, JSON.stringify(cfg));
+  initFirebase(cfg);
+  showMsg('setupMsg', 'Config saved & connecting…', true);
+}
+
+function clearConfig() {
+  localStorage.removeItem(CONFIG_KEY);
+  if (firebase.apps.length) firebase.app().delete();
+  db = null; dropsRef = null; boardData = {};
+  ['cfgApiKey','cfgProjectId','cfgAppId','cfgDbUrl'].forEach(id => $(id).value = '');
+  setStatus(false, 'Not connected — configure Firebase in Setup tab');
+  renderBoard();
+  showMsg('setupMsg', 'Config cleared.', true);
+}
+
+// ─── Board CRUD ───
+function fbPush(label, payload) {
+  if (!dropsRef) throw new Error('Firebase not connected. Go to Setup tab first.');
+  return dropsRef.push({ label: label || 'untitled', payload, size: payload.length, ts: firebase.database.ServerValue.TIMESTAMP });
+}
+
+async function boardPost() {
+  const label = $('postLabel').value.trim(), content = $('postContent').value.trim();
+  if (!content) { showMsg('boardPostMsg', 'Paste an encrypted payload first.', false); return; }
+  try { await fbPush(label, content); $('postLabel').value = ''; $('postContent').value = ''; showMsg('boardPostMsg', 'Published.', true); }
+  catch (err) { showMsg('boardPostMsg', err.message, false); }
+}
+
+async function postToBoard() {
+  const content = $('encOutput').value;
+  if (!content) { showMsg('encMsg', 'Encrypt a file first.', false); return; }
+  const label = selectedFile ? selectedFile.name.replace(/\.[^.]+$/, '') : 'untitled';
+  try { await fbPush(label, content); showMsg('encMsg', 'Posted to live board.', true); }
+  catch (err) { showMsg('encMsg', err.message, false); }
+}
+
+function boardCopy(key) {
+  const item = boardData[key]; if (!item) return;
+  navigator.clipboard.writeText(item.payload).then(() => {
+    const btn = document.querySelector(`[data-cid="${key}"]`);
+    if (btn) { const o = btn.innerHTML; btn.innerHTML = '✓ Copied'; setTimeout(() => btn.innerHTML = o, 1500); }
+  });
+}
+
+function boardGrab(key) {
+  const item = boardData[key]; if (!item) return;
+  $('decInput').value = item.payload;
+  switchTab('decrypt');
+}
+
+function boardRemove(key) { if (dropsRef) dropsRef.child(key).remove(); }
+function boardClearAll() { if (dropsRef) dropsRef.remove(); }
+
+function renderBoard() {
+  const list = $('boardList'), countEl = $('boardCount');
+  const entries = Object.entries(boardData).map(([k, v]) => ({ key: k, ...v })).sort((a, b) => (b.ts || 0) - (a.ts || 0));
+  countEl.textContent = entries.length + ' item' + (entries.length !== 1 ? 's' : '');
+
+  if (!entries.length) {
+    list.innerHTML = '<div class="board-empty"><div class="empty-icon">📭</div><p>Board is empty. Encrypt a file and post it here.</p></div>';
+    return;
+  }
+
+  let h = '';
+  for (const e of entries) {
+    h += `<div class="board-item">
+      <div class="board-item-header">
+        <div class="board-item-label">${esc(e.label)} <span class="tag">encrypted</span></div>
+        <div class="board-item-time">${timeAgo(e.ts)}</div>
+      </div>
+      <div class="board-item-meta">${fmt(e.size)} payload</div>
+      <div class="board-item-actions">
+        <button class="btn btn-secondary btn-sm" data-cid="${e.key}" onclick="boardCopy('${e.key}')">📋 Copy</button>
+        <button class="btn btn-secondary btn-sm" onclick="boardGrab('${e.key}')">🔓 Decrypt</button>
+        <button class="btn btn-danger btn-sm" onclick="boardRemove('${e.key}')">✕ Remove</button>
+      </div>
+    </div>`;
+  }
+  h += '<div style="text-align:right;margin-top:0.5rem;"><button class="btn btn-danger btn-sm" onclick="boardClearAll()">🗑 Clear all</button></div>';
+  list.innerHTML = h;
+}
+</script>
 </body>
 </html>
